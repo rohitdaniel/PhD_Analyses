@@ -1,0 +1,16 @@
+Study,Study_Type,Variable_A,Variable_B,Feedback,Attributions,Feedback_Type,Attribution_Type,Setting,Point_Transformation,N,r,Fisher_z,SE_z,VI_z,CI_lower_z,CI_upper_z,CI_lower_r,CI_upper_r
+Phan (2012),Correlational,Feedback,Self-Efficacy,Verbal_Persuation,,Formative,,Classroom,r_to_fisher_z,339,0.25,0.255412812,0.054554473,0.00297619,0.14848801,0.362337613,0.147406228,0.347271404
+Dong (2023),Correlational,Attributions,Self-Efficacy,,Failure_Internal,,Adaptive,Classroom,r_to_fisher_z,266,0.52,0.576339755,0.061662642,0.003802281,0.455483198,0.697196312,0.426395753,0.602585149
+van der Kleij (2019),Correlational,Self-Efficacy,Feedback,Quality_Perceptions,,Formative,,Classroom,r_to_fisher_z,174,0.32,0.331647109,0.076471911,0.005847953,0.181764917,0.481529301,0.179789276,0.44746754
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Success_Ability,,Adaptive,Classroom,r_to_fisher_z,224,0.2,0.202732554,0.067267279,0.004524887,0.070891109,0.334573999,0.070772592,0.322624711
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Success_Effort,,Adaptive,Classroom,r_to_fisher_z,224,-0.72,-0.907644983,0.067267279,0.004524887,-1.039486428,-0.775803538,-0.777685181,-0.650291445
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Success_Environment,,Maladaptive,Classroom,r_to_fisher_z,224,-0.16,-0.161386696,0.067267279,0.004524887,-0.293228141,-0.029545251,-0.28510328,-0.029536657
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Failure_Ability,,Maladaptive,Classroom,r_to_fisher_z,224,-0.33,-0.342828254,0.067267279,0.004524887,-0.474669699,-0.210986809,-0.441964613,-0.207910846
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Failure_Effort,,Adaptive,Classroom,r_to_fisher_z,224,-0.08,-0.080171325,0.067267279,0.004524887,-0.21201277,0.05167012,-0.208892248,0.051624186
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Failure_Environment,,Maladaptive,Classroom,r_to_fisher_z,224,-0.01,-0.010000333,0.067267279,0.004524887,-0.141841778,0.121841112,-0.140898129,0.12124175
+Wolters et al. (2013),Correlational,Self-Efficacy,Attributions,,Failure_Task,,Maladaptive,Classroom,r_to_fisher_z,224,0.71,0.887183863,0.067267279,0.004524887,0.755342418,1.019025308,0.638325355,0.769469241
+Yildirim & Yildirim (2017),Correlational,Feedback,Self-Efficacy,Feedback,,Formative,,Classroom,r_to_fisher_z,4848,0.1,0.100335348,0.014366571,0.000206398,0.072177387,0.128493309,0.07205231,0.127790784
+Yildirim & Yildirim (2017),Correlational,Feedback,Self-Efficacy,Teacher_Support,,Formative,,Classroom,r_to_fisher_z,4848,0.11,0.110446916,0.014366571,0.000206398,0.082288955,0.138604877,0.082103718,0.137724051
+Luo & Lim (2024),Correlational,Feedback,Self-Efficacy,Formative_Assessment,,Formative,,Classroom,r_to_fisher_z,1939,0.33,0.342828254,0.022727273,0.000516529,0.298283618,0.38737289,0.289741104,0.369093212
+Yildirim (2012),Correlational,Feedback,Self-Efficacy,Teacher_Support,,Formative,,Classroom,r_to_fisher_z,4855,0.17,0.171666664,0.014356203,0.000206101,0.143529022,0.199804305,0.142551482,0.197187242
+Smit et al. (2023),Correlational,Feedback,Self-Efficacy,Feedback,,Formative,,Classroom,r_to_fisher_z,1261,0.21,0.213171347,0.028194194,0.000794913,0.157911742,0.268430951,0.156612135,0.262164229

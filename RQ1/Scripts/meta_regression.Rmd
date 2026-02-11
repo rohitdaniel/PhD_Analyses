@@ -1,0 +1,561 @@
+---
+title: "Meta-Analyses"
+author: "Rohit Daniel"
+output: html_document
+---
+
+```{r setup, results='hide', echo=FALSE}
+Sys.setlocale("LC_ALL", "Norwegian_Norway.65001")  # UTF-8
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+knitr::opts_knit$set(
+  root.dir = "C:/Users/rodan/OneDrive - Høgskulen på Vestlandet/Dokumenter/GitHub/PhD_Analyses/RQ1/Fisher_Z_CSV"
+  )
+```
+
+
+# 0. Load required R packages
+```{r}
+# Load required package
+library(tidyverse)
+library(metafor)
+library(tikzDevice)
+```
+
+# 1. Import and prepare effect sizes for meta analysis
+```{r}
+# Import Fisher z from correlational and experimental studies
+corr_fisher_z <- read.csv("corr_fisher_z_cleaned.csv", header = TRUE, fileEncoding = 'UTF-8')
+exp_fisher_z <- read.csv("exp_fisher_z_cleaned.csv", header = TRUE, fileEncoding = 'UTF-8')
+
+# Combine correlational and experimental Fisher z tibbles
+combined_effects <- 
+  corr_fisher_z %>% 
+  bind_rows(exp_fisher_z)
+```
+
+# 2. Meta-analysis of associations between feedback effects and self-efficacy
+```{r}
+# Filter associations between feedback and self-efficacy
+fb_se <- 
+  combined_effects |> 
+  filter((grepl("Feedback", Variable_A, ignore.case = TRUE) & grepl("Self[- ]?Efficacy", Variable_B, ignore.case = TRUE)) |
+           (grepl("Feedback", Variable_B, ignore.case = TRUE) & grepl("Self[- ]?Efficacy", Variable_A, ignore.case = TRUE))) |> 
+  mutate(
+    across(contains("Type"), as.factor),
+    Setting = as.factor(Setting), 
+    Design = as.factor(Design)
+    )
+
+# Create unique effect size identifier for multilevel modeling
+fb_se <- fb_se |> mutate(Effect_ID = row_number())
+
+# Specify null model
+res_fb_se_null <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  data = fb_se,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+# Specify random-effects multi-level meta-regression models
+res_fb_se_model_1 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Setting,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_se,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+res_fb_se_model_2 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Study_Type,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_se,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+res_fb_se_model_3 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Setting + Study_Type,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_se,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+res_fb_se_model_4 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Setting * Study_Type,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_se,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+```
+
+## Inspect models
+```{r}
+# Likelihood ratio tests
+comp1_fb_se <- anova(res_fb_se_null, res_fb_se_model_1, refit=TRUE)
+comp2_fb_se <- anova(res_fb_se_null, res_fb_se_model_2, refit=TRUE)
+comp3_fb_se <- anova(res_fb_se_null, res_fb_se_model_3, refit=TRUE)
+comp4_fb_se <- anova(res_fb_se_null, res_fb_se_model_4, refit=TRUE)
+
+print("=== MODEL1 COMPARISON SUMMARY ===")
+print(comp1_fb_se)
+
+print("=== MODEL2 COMPARISON SUMMARY ===")
+print(comp2_fb_se)
+
+print("=== MODEL3 COMPARISON SUMMARY ===")
+print(comp3_fb_se)
+
+print("=== MODEL4 COMPARISON SUMMARY ===")
+print(comp4_fb_se)
+```
+In the meta-regression for feedback-self-efficacy associations, I compared a null model (no moderators) against four alternatives: Model 1 (~ Setting), Model 2 (~ Study_Type), Model 3 (~ Study_Type + Setting), and Model 4 (~ Study_Type * Setting). Selection prioritized AIC, BIC, AICc, likelihood ratio tests (LRT), and residual heterogeneity (QE).
+
+Model 1 was selected as the best fit due to its lowest AIC (50.33), BIC (57.16), and AICc (52.93), highly significant LRT improvement over the null (p = 0.0026), and substantial QE reduction (from 836 to 415). It balanced explanatory power and parsimony better than the others, which showed higher criteria or unnecessary complexity. The overlap between Setting and Study_Type (experimental studies mostly in individual settings; correlational in classroom/small group) likely caused redundancy in combined models, favoring Setting alone for clearer, more efficient moderation.
+
+```{r}
+# Calculate pseudo R^2
+R2_fb_se <- round(((res_fb_se_null$sigma2[1] - res_fb_se_model_1$sigma2[1]) / res_fb_se_null$sigma2[1]) * 100, 1)
+print(paste("Feedback setting explains", R2_fb_se, "% of study-level variance"))
+
+# Test residual heterogeneity
+print("Residual heterogeneity test:", quote=FALSE)
+print(res_fb_se_model_1$QE)
+
+# Model summaries
+print("FULL MODEL:", quote=FALSE); summary(res_fb_se_model_1)
+print("NULL MODEL:", quote=FALSE); summary(res_fb_se_null)
+
+# Detailed coefficients (with p-values)
+coef_tab_fb_se <- coef(summary(res_fb_se_model_1))
+print(coef_tab_fb_se)
+```
+
+```{r}
+# Overall (null) pooled effect prediction
+p_overall_fb_se <- predict(res_fb_se_null)
+
+# Predicted means by Setting levels
+levels_setting <- levels(fb_se$Setting)
+
+pred_by_setting_fb_se <- lapply(levels_setting, function(s) {
+  # Create design matrix for the specific level
+  Xnew <- model.matrix(~ Setting, data = data.frame(Setting = factor(s, levels = levels_setting)))
+  pr <- predict(res_fb_se_model_1, newmods = Xnew[, -1, drop = FALSE])
+  data.frame(
+    Effect = s,
+    Fisher_z = pr$pred,
+    CI_lb = pr$ci.lb,
+    CI_ub = pr$ci.ub,
+    p_value = 2 * (1 - pnorm(abs(pr$pred / pr$se)))  # Two-tailed test: mean != 0
+  )
+}) |> bind_rows()
+
+# Combine into final table
+results_fb_se <- bind_rows(
+  data.frame(
+    Effect = "Overall",
+    Fisher_z = p_overall_fb_se$pred,
+    CI_lb = p_overall_fb_se$ci.lb,
+    CI_ub = p_overall_fb_se$ci.ub,
+    p_value = 2 * (1 - pnorm(abs(p_overall_fb_se$pred / p_overall_fb_se$se)))
+  ),
+  pred_by_setting_fb_se
+)
+
+# Back-transform for interpretation (Fisher z to r)
+results_fb_se$Correlation_r <- tanh(results_fb_se$Fisher_z)
+results_fb_se$CI_r_lb <- tanh(results_fb_se$CI_lb)
+results_fb_se$CI_r_ub <- tanh(results_fb_se$CI_ub)
+
+# Optional: p-value for Adaptive vs Maladaptive (difference test)
+p_diff_individual_vs_classroom <- coef_tab_fb_se["SettingIndividual", "pval"]
+p_diff_small_groups_vs_classroom <- coef_tab_fb_se["SettingSmall_Groups", "pval"]
+
+# Format p-values for publication (show <0.001 if applicable)
+results_fb_se$p_value_formatted <- ifelse(results_fb_se$p_value < 0.001, "<0.001", sprintf("%.3f", results_fb_se$p_value))
+
+# Round numeric columns (except formatted p-value)
+num_cols <- sapply(results_fb_se, is.numeric) & colnames(results_fb_se) != "p_value_formatted"
+results_fb_se[num_cols] <- lapply(results_fb_se[num_cols], function(x) round(x, 3))
+
+# Print results table (using r-scale CIs for consistency)
+print("=== META-REGRESSION RESULTS ===")
+print(results_fb_se[, c("Effect", "Fisher_z", "Correlation_r", "CI_r_lb", "CI_r_ub", "p_value_formatted")])
+
+# Publication summary
+cat("\n=== PUBLICATION SUMMARY ===\n")
+for (i in 1:nrow(results_fb_se)) {
+  cat(sprintf("%12s: r = %6.3f [%.3f, %.3f], p = %s\n",
+              results_fb_se$Effect[i],
+              results_fb_se$Correlation_r[i],
+              results_fb_se$CI_r_lb[i],
+              results_fb_se$CI_r_ub[i],
+              results_fb_se$p_value_formatted[i]))
+}
+
+# Individual vs. Classroom difference test p-value
+cat("\nIndividual vs Classroom difference test p-value: ",
+    ifelse(p_diff_individual_vs_classroom < 0.001, "<0.001", sprintf("%.3f", p_diff_individual_vs_classroom)),
+    "\n", sep="")
+
+# Small Groups vs. Classroom difference test p-value
+cat("\nIndividual vs Classroom difference test p-value: ",
+    ifelse(p_diff_small_groups_vs_classroom < 0.001, "<0.001", sprintf("%.3f", p_diff_small_groups_vs_classroom)),
+    "\n", sep="")
+
+# saveRDS(results, "meta_regression_results.rds")
+# write.csv(results, "meta_regression_results.csv")
+```
+
+```{r}
+# Forest plot
+forest(res_fb_se_model_1, 
+       slab = paste0(fb_se$Study, " (", fb_se$Setting, ")"),
+       xlab = expression("Fisher's" ~ italic(z)),
+       refline = 0,
+       digits = c(2, 0),
+       header = c("Study (Feedback Setting)", "Fisher z [95% CI]"),
+       addfit = TRUE
+)
+```
+
+# 3. Meta-analyss of associations between feedback and attributions
+
+```{r}
+# Filter associations between feedback and attributions
+fb_attr <- 
+  combined_effects |> 
+  filter((grepl("Feedback", Variable_A, ignore.case = TRUE) & grepl("Attributions", Variable_B, ignore.case = TRUE)) |
+           (grepl("Feedback", Variable_B, ignore.case = TRUE) & grepl("Attributions", Variable_A, ignore.case = TRUE))) |> 
+  mutate(
+    across(contains("Type"), as.factor),
+    Setting = as.factor(Setting), 
+    Design = as.factor(Design)
+    )
+
+# Create unique effect size identifier for multilevel modeling
+fb_attr <- fb_attr |> mutate(Effect_ID = row_number())
+
+# Specify null model
+res_fb_attr_null <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  data = fb_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+# Specify random-effects multi-level meta-regression models
+res_fb_attr_model_1 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Attribution_Type,      # Setting as moderator (factor auto-dummy coded)
+  data = fb_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+res_fb_attr_model_2 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Setting,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+res_fb_attr_model_3 <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Attribution_Type + Setting,               # Setting as moderator (factor auto-dummy coded)
+  data = fb_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+```
+
+## Inspect models
+```{r}
+# Likelihood ratio tests
+comp1_fb_attr <- anova(res_fb_attr_null, res_fb_attr_model_1, refit=TRUE)
+comp2_fb_attr <- anova(res_fb_attr_null, res_fb_attr_model_2, refit=TRUE)
+comp3_fb_attr <- anova(res_fb_attr_null, res_fb_attr_model_3, refit=TRUE)
+
+print("=== MODEL1 COMPARISON SUMMARY ===")
+print(comp1_fb_attr)
+
+print("=== MODEL2 COMPARISON SUMMARY ===")
+print(comp2_fb_attr)
+
+print("=== MODEL3 COMPARISON SUMMARY ===")
+print(comp3_fb_attr)
+```
+In the meta-regression for feedback-attribution associations, I compared a null model (no moderators) against three alternatives: Model 1 (~ Attribution_Type), Model 2 (~ Setting), and Model 3 (~ Attribution_Type + Setting). Selection prioritized AIC, BIC, AICc, likelihood ratio tests (LRT), and residual heterogeneity (QE).
+
+Model 1 was selected as the best fit due to its lowest AIC (78.79), BIC (85.54), and AICc (79.93), highly significant LRT improvement over the null (p = 0.0077), and substantial QE reduction (from 206.85 to 179.68). It balanced explanatory power and parsimony better than the others, which showed higher criteria or unnecessary complexity. The overlap between Attribution_Type and Setting (e.g., potential clustering by study or design) likely caused redundancy in the combined model, favoring Attribution_Type alone for clearer, more efficient moderation.
+
+
+```{r}
+# Calculate pseudo R^2
+R2_fb_attr <- round(((res_fb_attr_null$sigma2[1] - res_fb_attr_model_1$sigma2[1]) / res_fb_attr_null$sigma2[1]) * 100, 1)
+print(paste("Attribution type explains", R2_fb_attr, "% of study-level variance"))
+
+# Test residual heterogeneity
+print("Residual heterogeneity test:", quote=FALSE)
+print(res_fb_attr_model_1$QE)
+
+# Model summaries
+print("FULL MODEL:", quote=FALSE); summary(res_fb_attr_model_1)
+print("NULL MODEL:", quote=FALSE); summary(res_fb_attr_null)
+
+# Detailed coefficients (with p-values)
+coef_table_fb_attr <- coef(summary(res_fb_attr_model_1))
+print(coef_table_fb_attr)
+```
+
+
+```{r}
+# Overall effect from null model
+p_overall_fb_attr <- predict(res_fb_attr_null)
+
+# Predicted means for each Attribution_Type level (correct CIs via vcov)
+levels_attribution_type <- levels(fb_attr$Attribution_Type)
+
+pred_levels <- lapply(levels_attribution_type, function(lv) {
+  Xnew <- model.matrix(~ Attribution_Type,
+                       data = data.frame(Attribution_Type = factor(lv, levels = levels_attribution_type)))
+  pr <- predict(res_fb_attr_model_1, newmods = Xnew[, -1, drop = FALSE])  # moderator cols only
+
+  data.frame(
+    Effect   = lv,
+    Fisher_z = pr$pred,
+    SE       = pr$se,
+    CI_lb    = pr$ci.lb,
+    CI_ub    = pr$ci.ub,
+    p_value  = 2 * (1 - pnorm(abs(pr$pred / pr$se)))  # test mean != 0
+  )
+}) |> do.call(rbind, args = _)
+
+# Combine with "Overall" (null model)
+results_fb_attr <- rbind(
+  data.frame(
+    Effect   = "Overall",
+    Fisher_z = p_overall_fb_attr$pred,
+    SE       = p_overall_fb_attr$se,
+    CI_lb    = p_overall_fb_attr$ci.lb,
+    CI_ub    = p_overall_fb_attr$ci.ub,
+    p_value  = 2 * (1 - pnorm(abs(p_overall_fb_attr$pred / p_overall_fb_attr$se)))
+  ),
+  pred_levels
+)
+
+# Back-transform to r for interpretation
+results_fb_attr$Correlation_r <- tanh(results_fb_attr$Fisher_z)
+results_fb_attr$CI_r_lb       <- tanh(results_fb_attr$CI_lb)
+results_fb_attr$CI_r_ub       <- tanh(results_fb_attr$CI_ub)
+
+# Optional: p-value for Adaptive vs Maladaptive (difference test)
+p_diff_maladaptive_vs_adaptive <- coef_table_fb_attr["Attribution_TypeMaladaptive", "pval"]
+
+# Round numeric columns
+num_cols <- c("Fisher_z","SE","CI_lb","CI_ub","p_value","Correlation_r","CI_r_lb","CI_r_ub")
+results_fb_attr[num_cols] <- lapply(results_fb_attr[num_cols], \(x) round(x, 3))
+
+# Format p-values
+results_fb_attr$p_value_formatted <- ifelse(results_fb_attr$p_value < 0.001, "<0.001",
+                                            sprintf("%.3f", results_fb_attr$p_value))
+
+# DISPLAY FINAL PUBLICATION TABLE
+cat("\n=== ATTRIBUTION TYPE META-REGRESSION RESULTS ===\n")
+print(results_fb_attr[, c("Effect","Fisher_z","Correlation_r","CI_lb","CI_ub","p_value_formatted")])
+
+# PUBLICATION SUMMARY
+cat("\n=== PUBLICATION SUMMARY ===\n")
+for (i in 1:nrow(results_fb_attr)) {
+  cat(sprintf("%15s: r = %6.3f [%.3f, %.3f], p = %s\n",
+              results_fb_attr$Effect[i],
+              results_fb_attr$Correlation_r[i],
+              results_fb_attr$CI_r_lb[i],
+              results_fb_attr$CI_r_ub[i],
+              results_fb_attr$p_value_formatted[i]))
+}
+
+# Adaptive vs. Maladaptive difference test p-value
+cat("\nMaladaptive vs Adaptive difference test p-value: ",
+    ifelse(p_diff_maladaptive_vs_adaptive < 0.001, "<0.001", sprintf("%.3f", p_diff_maladaptive_vs_adaptive)),
+    "\n", sep="")
+
+# saveRDS(results, "meta_regression_results.rds")
+# write.csv(results, "meta_regression_results.csv")
+```
+
+```{r}
+# Forest plot
+forest(res_fb_attr_model_1, 
+       slab = paste0(fb_attr$Study, " (", fb_attr$Attributions, ")"),
+       xlab = expression("Fisher's" ~ italic(z)),
+       refline = 0,
+       header = c("Study (Attribution Type)", "Fisher z [95% CI]"))
+```
+
+# 4. Meta-analysis of associations between self-efficacy and attributions
+```{r}
+# Filter associations between self-efficacy and attributions
+se_attr <- 
+  combined_effects |> 
+  filter((grepl("Self[- ]?Efficacy", Variable_A, ignore.case = TRUE) & grepl("Attributions", Variable_B, ignore.case = TRUE)) |
+           (grepl("Self[- ]?Efficacy", Variable_B, ignore.case = TRUE) & grepl("Attributions", Variable_A, ignore.case = TRUE))) |> 
+  mutate(
+    across(contains("Type"), as.factor),
+    Setting = as.factor(Setting), 
+    Design = as.factor(Design)
+    )
+
+# Create unique effect size identifier for multilevel modeling
+se_attr <- se_attr |> mutate(Effect_ID = row_number())
+
+# Specify null model
+res_se_attr_null <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  data = se_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+
+# Specify random-effects multi-level meta-regression models
+res_se_attr <- rma.mv(
+  yi = Fisher_z,                  # Outcome: Fisher-transformed correlations
+  V = VI_z,                       # Sampling variances: 1/(n-3) per effect
+  random = list(~ 1 | Study,      # Random intercept for Study
+                ~ 1 | Effect_ID), # Random intercept for Effect_ID
+  mods = ~ Study_Type,      # Setting as moderator (factor auto-dummy coded)
+  data = se_attr,
+  method = "REML",                # Restricted maximum likelihood
+  control = list(optimizer="optim")
+)
+```
+
+```{r}
+# Likelihood ratio test
+model_comparison_se_attr <- anova(res_se_attr_null, res_se_attr, refit=TRUE)
+print(model_comparison_se_attr)
+```
+In the meta-regression for self-efficacy-attribution associations, I compared a null model (no moderators) against a moderated model (~ Attribution_Type). Selection prioritized AIC, BIC, AICc, likelihood ratio tests (LRT), and residual heterogeneity (QE), along with pseudo R² for variance explained.
+
+The null model was selected as the best fit due to its lower AIC (18.12), BIC (18.36), and AICc (24.12), with a non-significant LRT (p = 0.6896) indicating no improvement from moderation. The pseudo R² was negative (-336.9%), suggesting the moderator explained no variance and potentially worsened fit. The moderated model showed minimal QE reduction (from 483.61 to 477.42) but added unnecessary complexity, favoring the parsimonious null model for this dataset.
+
+## Inspect models
+```{r}
+# Test residual heterogeneity
+print("Residual heterogeneity test:", quote=FALSE)
+print(res_se_attr_null$QE)
+
+# Model summaries
+print("NULL MODEL:", quote=FALSE); summary(res_se_attr_null)
+
+# Detailed coefficients (with p-values)
+coef_table_se_attr <- coef(summary(res_se_attr_null))
+print(coef_table_se_attr)
+```
+
+
+```{r}
+# Overall effect from null model
+p_overall_se_attr <- predict(res_se_attr_null)
+
+# FIXED PREDICTIONS - Direct coefficient extraction
+results_se_attr <- data.frame(
+  Effect = c("Overall", "Maladaptive", "Adaptive"),
+  Fisher_z = c(
+    p_overall_se_attr$pred,                                          # Overall pooled effect
+    coef_table_se_attr["intrcpt", "estimate"],                       # Maladaptive = intercept
+    coef_table_se_attr["intrcpt", "estimate"] + coef_table_se_attr["Attribution_TypeAdaptive", "estimate"]  # Adaptive
+  ),
+  p_value = c(
+    2 * (1 - pnorm(abs(p_overall_se_attr$pred / p_overall_se_attr$se))),     # Overall vs 0
+    coef_table_se_attr["intrcpt", "pval"],                           # Maladaptive vs 0
+    coef_table_se_attr["Attribution_TypeAdaptive", "pval"]           # Adaptive vs Maladaptive
+  )
+)
+
+# Add CIs (direct from model)
+results_se_attr$CI_lb <- c(
+  p_overall_se_attr$ci.lb,
+  coef_table_se_attr["intrcpt", "ci.lb"],
+  coef_table_se_attr["intrcpt", "ci.lb"] + coef_table_se_attr["Attribution_TypeAdaptive", "ci.lb"]
+)
+results_se_attr$CI_ub <- c(
+  p_overall_se_attr$ci.ub,
+  coef_table_se_attr["intrcpt", "ci.ub"],
+  coef_table_se_attr["intrcpt", "ci.ub"] + coef_table_se_attr["Attribution_TypeAdaptive", "ci.ub"]
+)
+
+# Back-transform to correlations
+results_se_attr$Correlation_r <- round(tanh(results_se_attr$Fisher_z), 3)
+results_se_attr$CI_r_lb <- round(tanh(results_se_attr$CI_lb), 3)
+results_se_attr$CI_r_ub <- round(tanh(results_se_attr$CI_ub), 3)
+
+# Round numeric columns
+results_se_attr[, c("Fisher_z", "CI_lb", "CI_ub", "p_value")] <- 
+  lapply(results_se_attr[, c("Fisher_z", "CI_lb", "CI_ub", "p_value")], round, 3)
+
+# Format p-values
+results_se_attr$p_value_formatted <- ifelse(results_se_attr$p_value < 0.001, "<0.001", 
+                                          sprintf("%.3f", results_se_attr$p_value))
+
+# DISPLAY FINAL PUBLICATION TABLE
+cat("\n=== ATTRIBUTION TYPE META-REGRESSION RESULTS ===\n")
+print(results_se_attr[, c("Effect", "Fisher_z", "Correlation_r", "CI_lb", "CI_ub", "p_value_formatted")])
+
+# PUBLICATION SUMMARY
+cat("\n=== PUBLICATION SUMMARY ===\n")
+for (i in 1:nrow(results_se_attr)) {
+  cat(sprintf("%15s: r = %6.3f [%.3f, %.3f], p = %s\n",
+              results_se_attr$Effect[i],
+              results_se_attr$Correlation_r[i],
+              results_se_attr$CI_r_lb[i],
+              results_se_attr$CI_r_ub[i],
+              results_se_attr$p_value_formatted[i]))
+}
+
+# saveRDS(results, "meta_regression_results.rds")
+# write.csv(results, "meta_regression_results.csv")
+```
+
+```{r}
+# Forest plot
+forest(res_se_attr, 
+       slab = paste0(se_attr$Study, " (", se_attr$Attributions, ")"),
+       xlab = expression("Fisher's" ~ italic(z)),
+       refline = 0,
+       header = c("Study (Attribution Type)", "Fisher z [95% CI]"))
+```
